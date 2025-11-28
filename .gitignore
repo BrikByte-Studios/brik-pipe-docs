@@ -1,0 +1,3 @@
+# Build performance telemetry / Kaniko timing snapshots
+build-perf-metrics.json
+containers/build-perf-metrics.json

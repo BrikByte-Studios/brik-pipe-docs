@@ -131,6 +131,28 @@ WORKFLOWS_JSON="$(
     "https://api.github.com/repos/${REPO}/actions/workflows"
 )"
 
+# Check for top-level API error (e.g. Bad credentials, Not Found)
+API_MESSAGE="$(echo "$WORKFLOWS_JSON" | jq -r '.message // empty')"
+if [[ -n "$API_MESSAGE" ]]; then
+  echo "❌ GitHub API error when listing workflows:"
+  echo "    message: $API_MESSAGE"
+  echo "    repo:    $REPO"
+  echo "    hint:    Check GITHUB_TOKEN scopes and repository name."
+  exit 1
+fi
+
+# Ensure .workflows is present and an array
+HAS_WORKFLOWS="$(
+  echo "$WORKFLOWS_JSON" | jq -r 'has("workflows")'
+)"
+
+if [[ "$HAS_WORKFLOWS" != "true" ]]; then
+  echo "❌ Unexpected response from GitHub when listing workflows for ${REPO}."
+  echo "   Raw response:"
+  echo "$WORKFLOWS_JSON"
+  exit 1
+fi
+
 WORKFLOW_ID="$(
   echo "$WORKFLOWS_JSON" | jq -r \
     --arg wf "$WORKFLOW_FILE" \
@@ -138,11 +160,14 @@ WORKFLOW_ID="$(
 )"
 
 if [[ -z "$WORKFLOW_ID" || "$WORKFLOW_ID" == "null" ]]; then
-  echo "ERROR: Could not find workflow with path '${WORKFLOW_FILE}' in repo '${REPO}'." >&2
+  echo "❌ Could not find workflow with path '${WORKFLOW_FILE}' in repo '${REPO}'."
+  echo "   Known workflow paths in this repo:"
+  echo "$WORKFLOWS_JSON" | jq -r '.workflows[].path'
   exit 1
 fi
 
 echo "✅ Workflow ID for '${WORKFLOW_FILE}' is: ${WORKFLOW_ID}"
+
 
 # -------------------------------
 # Step 2: Fetch recent successful runs for that workflow

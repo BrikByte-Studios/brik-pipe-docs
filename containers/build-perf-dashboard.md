@@ -53,11 +53,11 @@ We then compare:
 
 | Service | Cache Repo | Build #1 Duration (Cold) | Build #2 Duration (Warm) | Delta (Warm – Cold) | Cache Hit Evidence | Last Measured |
 |--------|------------|---------------------------|---------------------------|---------------------|--------------------|---------------|
-| Node API | `ghcr.io/brikbyte-studios/cache/example-node-api` | TBD | TBD | TBD | ☐ | TBD |
-| Python API | `ghcr.io/brikbyte-studios/cache/example-python-api` | TBD | TBD | TBD | ☐ | TBD |
-| Java API | `ghcr.io/brikbyte-studios/cache/example-java-api` | TBD | TBD | TBD | ☐ | TBD |
-| Go API | `ghcr.io/brikbyte-studios/cache/example-go-api` | TBD | TBD | TBD | ☐ | TBD |
-| .NET API | `ghcr.io/brikbyte-studios/cache/example-dotnet-api` | TBD | TBD | TBD | ☐ | TBD |
+| Node API | `ghcr.io/brikbyte-studios/cache/example-node-api` | 34 | 33 | 1 | ✅ | 2025-11-28T10:12:45Z |
+| Python API | `ghcr.io/brikbyte-studios/cache/example-python-api` | 38 | 42 | -4 | ✅ | 2025-11-28T10:16:44Z |
+| Java API | `ghcr.io/brikbyte-studios/cache/example-java-api` | 63 | 113 | -50 | ✅ | 2025-11-28T10:16:46Z |
+| Go API | `ghcr.io/brikbyte-studios/cache/example-go-api` | 36 | 42 | -6 | ✅ | 2025-11-28T10:16:47Z |
+| .NET API | `ghcr.io/brikbyte-studios/cache/example-dotnet-api` | 51 | 47 | 4 | ✅ | 2025-11-28T10:16:49Z |
 
 
 **Legend:**
