@@ -198,3 +198,22 @@ This table is for quick human consumption. Machine-readable JSON is maintained a
 
 **Notes**
 - GOPATH-based projects are considered legacy; modules (`go.mod`) are required for BrikByteOS templates.
+
+## 3. BrikByteOS Runtime Matrix — Container Self-Test
+
+> Source: `PIPE-CONTAINER-TEST-STACKS-TEST-006`  
+> This table drives expectations for `.github/workflows/ci-container-matrix-selftest.yml`
+> in `brik-pipe-examples`.
+
+| Runtime | Example App Repo Path             | Image Name (Self-Test)                                       | Port | Health Path |
+|--------|------------------------------------|--------------------------------------------------------------|------|------------|
+| node   | `node-api-example`                 | `ghcr.io/brikbyte-studios/example-node-api-selftest`        | 3000 | `/health`  |
+| python | `python-api-example`               | `ghcr.io/brikbyte-studios/example-python-api-selftest`      | 8080 | `/health`  |
+| java   | `java-api-example`                 | `ghcr.io/brikbyte-studios/example-java-api-selftest`        | 8080 | `/health`  |
+| dotnet | `dotnet-api-example`           | `ghcr.io/brikbyte-studios/example-dotnet-api-selftest`  | 8080 | `/health`  |
+| go     | `go-api-example`                   | `ghcr.io/brikbyte-studios/example-go-api-selftest`          | 8080 | `/health`  |
+
+> All images are tagged in CI as:
+> - `${MATRIX_SEMVER_TAG}` (default: `v0.0.0-selftest`)
+> - `sha-${GITHUB_SHA}`  
+> to satisfy **GOV-IMAGES-TAG-POLICY-CONFIG-001** (SHA + SemVer).
