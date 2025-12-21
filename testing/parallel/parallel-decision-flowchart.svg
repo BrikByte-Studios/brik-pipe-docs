@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+  width="1200"
+  height="1400"
+  viewBox="0 0 1200 1400"
+  xmlns="http://www.w3.org/2000/svg"
+  font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial"
+>
+  <defs>
+    <style>
+      :root {
+        --ink: #0f172a;      /* slate-900 */
+        --muted: #475569;    /* slate-600 */
+        --line: #cbd5e1;     /* slate-300 */
+        --panel: #ffffff;
+        --bg: #f8fafc;       /* slate-50 */
+        --good: #06b6d4;     /* cyan-500 */
+        --warn: #f97316;     /* orange-500 */
+        --bad:  #ef4444;     /* red-500 */
+      }
+
+      .title { fill: var(--ink); font-size: 28px; font-weight: 650; letter-spacing: -0.3px; }
+      .subtitle { fill: var(--muted); font-size: 14px; }
+
+      .card {
+        fill: var(--panel);
+        stroke: var(--line);
+        stroke-width: 1.5;
+        rx: 16;
+      }
+
+      .decision {
+        fill: var(--bg);
+        stroke: var(--line);
+        stroke-width: 1.5;
+      }
+
+      .tag {
+        fill: var(--bg);
+        stroke: var(--line);
+        stroke-width: 1.25;
+        rx: 999;
+      }
+
+      .tag-good { fill: rgba(6,182,212,0.10); stroke: rgba(6,182,212,0.55); }
+      .tag-warn { fill: rgba(249,115,22,0.10); stroke: rgba(249,115,22,0.55); }
+      .tag-bad  { fill: rgba(239,68,68,0.10);  stroke: rgba(239,68,68,0.55);  }
+
+      .h { fill: var(--ink); font-size: 16px; font-weight: 650; letter-spacing: -0.1px; }
+      .p { fill: var(--muted); font-size: 13.5px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+
+      .arrow {
+        stroke: var(--line);
+        stroke-width: 2;
+        marker-end: url(#arrow);
+      }
+
+      .shadow {
+        filter: drop-shadow(0px 10px 18px rgba(2,6,23,0.10));
+      }
+    </style>
+
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1200" height="1400" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="600" y="56" text-anchor="middle" class="title">Parallel Execution Decision Flow</text>
+  <text x="600" y="82" text-anchor="middle" class="subtitle">
+    Choose serial vs static vs dynamic sharding with safety + cost in mind
+  </text>
+
+  <!-- Start -->
+  <g class="shadow">
+    <rect x="420" y="110" width="360" height="78" class="card"/>
+    <text x="600" y="150" text-anchor="middle" class="h">Start</text>
+    <text x="600" y="174" text-anchor="middle" class="p">New or existing test workflow</text>
+  </g>
+
+  <!-- Q1: slow? -->
+  <g class="shadow">
+    <polygon points="600,235 765,315 600,395 435,315" class="decision"/>
+    <text x="600" y="308" text-anchor="middle" class="h">Is the workload slow?</text>
+    <text x="600" y="334" text-anchor="middle" class="p">&gt; ~5–10 minutes wall-clock</text>
+  </g>
+
+  <!-- No: Stay serial -->
+  <g class="shadow">
+    <rect x="95" y="440" width="390" height="110" class="card"/>
+    <rect x="120" y="465" width="120" height="26" class="tag tag-good"/>
+    <text x="180" y="483" text-anchor="middle" class="p" style="font-weight:650; fill:#0e7490;">RECOMMENDED</text>
+
+    <text x="290" y="485" text-anchor="middle" class="h">Stay serial</text>
+    <text x="290" y="512" text-anchor="middle" class="p">
+      Parallelism adds overhead without meaningful gain
+    </text>
+  </g>
+
+  <!-- Q2: isolated? -->
+  <g class="shadow">
+    <polygon points="600,470 765,550 600,630 435,550" class="decision"/>
+    <text x="600" y="543" text-anchor="middle" class="h">Are tests isolated?</text>
+    <text x="600" y="569" text-anchor="middle" class="p">DBs • ports • shared state • containers</text>
+  </g>
+
+  <!-- No: Do not parallelize -->
+  <g class="shadow">
+    <rect x="95" y="675" width="390" height="150" class="card"/>
+    <rect x="120" y="705" width="145" height="26" class="tag tag-bad"/>
+    <text x="192" y="723" text-anchor="middle" class="p" style="font-weight:650; fill:#b91c1c;">STOP</text>
+
+    <text x="290" y="725" text-anchor="middle" class="h">Do not parallelize</text>
+    <text x="290" y="752" text-anchor="middle" class="p">Fix isolation first:</text>
+    <text x="290" y="776" text-anchor="middle" class="p">
+      per-shard DBs • unique ports • isolated fixtures
+    </text>
+    <text x="290" y="800" text-anchor="middle" class="p">
+      deterministic data + cleanup
+    </text>
+  </g>
+
+  <!-- Q3: test type -->
+  <g class="shadow">
+    <polygon points="600,705 765,785 600,865 435,785" class="decision"/>
+    <text x="600" y="778" text-anchor="middle" class="h">What test type?</text>
+    <text x="600" y="804" text-anchor="middle" class="p">Pick defaults + evidence level</text>
+  </g>
+
+  <!-- Unit -->
+  <g class="shadow">
+    <rect x="95" y="925" width="360" height="150" class="card"/>
+    <rect x="120" y="952" width="132" height="26" class="tag tag-good"/>
+    <text x="186" y="970" text-anchor="middle" class="p" style="font-weight:650; fill:#0e7490;">DEFAULT</text>
+
+    <text x="275" y="970" text-anchor="middle" class="h">Unit tests</text>
+    <text x="275" y="998" text-anchor="middle" class="p">Use static sharding first</text>
+    <text x="275" y="1022" text-anchor="middle" class="p">Dynamic only after benchmark proof</text>
+  </g>
+
+  <!-- Integration -->
+  <g class="shadow">
+    <rect x="420" y="925" width="360" height="150" class="card"/>
+    <rect x="445" y="952" width="160" height="26" class="tag tag-warn"/>
+    <text x="525" y="970" text-anchor="middle" class="p" style="font-weight:650; fill:#c2410c;">CAUTION</text>
+
+    <text x="600" y="970" text-anchor="middle" class="h">Integration tests</text>
+    <text x="600" y="998" text-anchor="middle" class="p">Static first (reduce contention)</text>
+    <text x="600" y="1022" text-anchor="middle" class="p">Dynamic after stability + history</text>
+  </g>
+
+  <!-- E2E/Perf -->
+  <g class="shadow">
+    <rect x="745" y="925" width="360" height="150" class="card"/>
+    <rect x="770" y="952" width="205" height="26" class="tag tag-warn"/>
+    <text x="872" y="970" text-anchor="middle" class="p" style="font-weight:650; fill:#c2410c;">HIGH VARIANCE</text>
+
+    <text x="925" y="970" text-anchor="middle" class="h">E2E / Performance</text>
+    <text x="925" y="998" text-anchor="middle" class="p">Serial → static after fixes</text>
+    <text x="925" y="1022" text-anchor="middle" class="p">Dynamic only with strong evidence</text>
+  </g>
+
+  <!-- Benchmark gate -->
+  <g class="shadow">
+    <polygon points="600,1105 765,1185 600,1265 435,1185" class="decision"/>
+    <text x="600" y="1178" text-anchor="middle" class="h">Benchmark proves value?</text>
+    <text x="600" y="1204" text-anchor="middle" class="p">≥30% faster • no added flakiness</text>
+  </g>
+
+  <!-- Fail -->
+  <g class="shadow">
+    <rect x="95" y="1295" width="420" height="95" class="card"/>
+    <rect x="120" y="1321" width="150" height="26" class="tag tag-bad"/>
+    <text x="195" y="1339" text-anchor="middle" class="p" style="font-weight:650; fill:#b91c1c;">ROLL BACK</text>
+
+    <text x="315" y="1340" text-anchor="middle" class="h">Disable / reduce parallelism</text>
+    <text x="315" y="1366" text-anchor="middle" class="p mono">
+      SHARD_COUNT=1  or  PARALLEL_MODE=static
+    </text>
+  </g>
+
+  <!-- Pass -->
+  <g class="shadow">
+    <rect x="600" y="1295" width="505" height="95" class="card"/>
+    <rect x="625" y="1321" width="160" height="26" class="tag tag-good"/>
+    <text x="705" y="1339" text-anchor="middle" class="p" style="font-weight:650; fill:#0e7490;">KEEP</text>
+
+    <text x="852" y="1340" text-anchor="middle" class="h">Enable / keep parallelism</text>
+    <text x="852" y="1366" text-anchor="middle" class="p">
+      Enforce via benchmark regression gate
+    </text>
+  </g>
+
+  <!-- Arrows -->
+  <line x1="600" y1="188" x2="600" y2="235" class="arrow"/>
+  <line x1="435" y1="315" x2="290" y2="440" class="arrow"/>
+  <line x1="600" y1="395" x2="600" y2="470" class="arrow"/>
+
+  <line x1="435" y1="550" x2="290" y2="675" class="arrow"/>
+  <line x1="600" y1="630" x2="600" y2="705" class="arrow"/>
+
+  <line x1="440" y1="785" x2="275" y2="925" class="arrow"/>
+  <line x1="600" y1="865" x2="600" y2="925" class="arrow"/>
+  <line x1="760" y1="785" x2="925" y2="925" class="arrow"/>
+
+  <line x1="600" y1="1075" x2="600" y2="1105" class="arrow"/>
+  <line x1="435" y1="1185" x2="315" y2="1295" class="arrow"/>
+  <line x1="765" y1="1185" x2="852" y2="1295" class="arrow"/>
+</svg>
