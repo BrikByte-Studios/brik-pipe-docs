@@ -1,305 +1,272 @@
-<!--
-File: brik-pipe-docs/testing/parallel-matrix.md
-Purpose: BrikByteOS governed parallelization strategy (matrix plan).
-Owner: Platform Lead + QA Automation Lead
-WBS: PIPE-PARALLEL-MATRIX-INIT-001
--->
+# Parallel Test Matrix Strategy
 
-# Parallel Matrix Strategy
+**Document ID:** `PIPE-PARALLEL-MATRIX`  
+**Audience:** Platform, QA Automation, CI/CD  
+**Status:** Active  
+**Last Updated:** 2025-12-21
 
-## Overview
+## 1. Purpose
 
-BrikByteOS uses a **governed matrix plan** to parallelize tests in a **deterministic, safe-by-default, cost-controlled** way across repositories.
+This document defines how **tests are parallelized deterministically** across CI runners in BrikByteOS.
 
-This strategy defines:
-- Standard matrix keys per test type (unit / integration / e2e / performance)
-- Default shard counts and hard caps
-- Deterministic rules for partitioning work
-- A single reusable “Matrix Plan” action that emits `strategy.matrix` JSON
-
-## Goals
-
-- **Predictable CI runtime** (reduce time-to-signal)
-- **Cost control** (prevent runaway parallelism)
-- **Deterministic outcomes** (stable shard numbering and selection)
-- **Portable across repos** (same contract everywhere)
-- **Compatible with audit export** (`.audit/` evidence bundles)
-
-## Non-goals
-
-- Auto-tuning shards based on runtime heuristics
-- Randomized shuffling to “balance” shards
-- Per-repo custom logic baked into the platform runner (repos can override within caps)
+Goals:
+- Reduce wall-clock CI time
+- Maintain deterministic, debuggable execution
+- Support multiple languages and test frameworks
+- Enable **safe dynamic optimization** without breaking reproducibility
+- Produce audit-grade artifacts for governance and performance tracking
 
 ---
 
-## Core Principles
+## 2. Core Principles
+### 1. Determinism first
+- Same commit + same inputs = same shard assignment
 
-### Deterministic
-- No randomness.
-- Inputs are explicit lists (services, scenarios, browsers) or stable shard indices `1..N`.
-- Selection uses stable ordering (e.g., sorted file lists).
+### 2. Static by default
+- Dynamic behavior is opt-in and guarded
 
-### Safe-by-default
-- Defaults are conservative.
-- Integration/performance use fewer shards due to infra contention risk.
+### 3. Shard awareness
+- Every test knows which shard it belongs to
 
-### Governed
-- Repos may request overrides, but **platform caps** are enforced centrally.
+### 4. Auditability
+- Shard plans are exported to `.audit/`
 
-### Configurable
-- Configuration lives in `.github/actions/matrix-plan/parallel-matrix.yml`
-- Repos may supply `override_shards` or explicit item lists.
+### 5. Safe fallback
+- Planner failure must never block test execution
 
 ---
 
-## Test Type Strategy
+## 3. Parallelization Levels
+| Level | Description |
+| --- | --- |
+| Job matrix | GitHub Actions matrix (e.g. 4–8 shards) |
+| Test shard | Each job runs only its assigned tests |
+| Test framework | Native parallelism (optional, secondary) |
 
-### Matrix strategy per test type
 
-| Test Type | Matrix Key(s) | Parallel Unit | Default Shards | Max Shards | Notes |
-|---|---|---|---:|---:|---|
-| Unit | `shard` | Test files / projects | 6 | 8 | Cheap, safe, CPU-bound |
-| Integration | `item` OR `shard` | Service × scenario | 3 | 4 | DB/infra contention risk |
-| E2E | `browser × shard` | Browser × shard | 4 | 6 | Heavy, flake-prone, long-running |
-| Performance | `group` OR `shard` | Scenario groups | 1 | 2 | Resource intensive, avoid concurrency |
-
-> Defaults and caps are defined centrally and enforced by the matrix-plan action.
+BrikByteOS **controls sharding at the test list level**, not framework magic.
 
 ---
 
-## Matrix Inputs and Shapes
-
-The matrix-plan action emits a JSON object compatible with GitHub Actions `strategy.matrix`.
-
-### Unit
-**Shape**
-```json
-{ "shard": [1,2,3,4] }
-```
-
-**Semantics**
-- Each shard runs a deterministic subset of unit tests.
-- The test runner (Makefile) must use `UNIT_SHARD` and `UNIT_SHARD_TOTAL` if sharding is implemented.
+## 4. Terminology
+| Term | Meaning |
+| --- | --- |
+| **Item** | A test unit (file, class, spec, case) |
+| **Shard** | A slice of the test set |
+| **Shard Map** | `shard-map.json` describing assignments |
+| **Static Mode** | Even distribution by count |
+| **Dynamic Mode** | Weighted distribution by cost history |
+| **Audit Root** | `.audit/` evidence directory |
 
 ---
 
-### Integration
+## 5. Static Shard Mode (Default)
+### 5.1 Description
 
-Integration can run in two modes:
+Static mode distributes tests **evenly by count** across shards.
+- No historical data required
+- Fully deterministic
+- Lowest operational risk
 
-**Mode A: Item-based (recommended)**  
-**Shape**
-```json
-{ "item": ["users::happy_path", "payments::declined_card"] }
-```
+### 5.2 When to Use
+- New repositories
+- Unstable or frequently changing tests
+- Governance-critical pipelines
+- Local development
 
-**Semantics**
-- Each matrix job executes exactly one integration “item” (service×scenario).
-- Item list is provided explicitly (e.g., services_csv + scenarios_csv, or a single items CSV).
+### 5.3 Inputs Used
+- `shard_count`
+- `items` or `items_file`
+- Optional `seed`
 
-**Mode B: Shard-based (fallback)**  
-**Shape**
-```json
-{ "shard": [1,2,3] }
-```
-
-**Semantics**
-- Each shard executes a deterministic subset of integration items discovered/defined by the repo.
-- Used when explicit items are not provided.
-
-**Why 2–4?**
-- Parallel integration runs compete for DB, caches, message brokers, and CPU/memory on shared runners.
-- A small shard count avoids “infra thrash” and false negatives.
+### 5.4 Guarantees
+- Identical shard plans for identical inputs
+- No dependency on `.audit/` history
+- Zero learning curve
 
 ---
 
-### E2E
-**Shape**
-```json
-{ "browser": ["chromium","firefox"], "shard": [1,2,3,4] }
-```
-**Semantics**
-- Cross-product matrix: browser × shard.
-- Each job runs a deterministic subset of E2E tests for a given browser.
-- Avoids mixing cross-browser failures.
+## 6. Dynamic Shard Mode 🧠
+### 6.1 Description
 
----
+Dynamic shard mode distributes tests based on **historical execution cost** to minimize total wall-clock time.
 
-### Performance
+Instead of “same number of tests per shard”, the planner aims for:
 
-Performance tests run in two modes:
+> **Same total execution time per shard**
 
-**Mode A: Group-based (recommended)**  
-**Shape**
-```json
-{ "group": ["smoke", "baseline"] }
-```
+### 6.2 What “Cost” Means
 
-**Semantics**
-- Each matrix job runs exactly one scenario group.
-- Group definitions live in the repo (`tests/performance/groups.yml` or equivalent).
+Cost is derived from historical data in `.audit/`, such as:
+- Test duration
+- Retry frequency (optional)
+- File size heuristics (fallback)
 
-**Mode B: Shard-based (fallback)**  
-**Shape**
-```json
-{ "shard": [1] }
-```
-**Semantics**
-- Used when groups aren’t provided.
-- Defaults to 1 shard; at most 2.
+Each test item receives a **weight**, and shards are filled greedily to balance total weight.
 
-**Why 1–2?**
-- Perf tests are resource-intensive and can distort results when run concurrently.
-- Concurrency increases noise and reduces interpretability.
 
----
+### 6.3 Data Sources (Priority Order)
+1. **Explicit history file** (`--history-path`)
+2. **Audit history** under:
+    ```pgsql
+    .audit/**/<test_type>/**/shard-history.json
+    ```
+3. **Heuristic fallback**
+   - File size
+   - Alphabetical ordering (deterministic)
 
-## Governance Configuration
-### Config file
+If no usable history exists → **automatic fallback to static mode**.
 
-`BrikByte-Studios/.github/.github/actions/matrix-plan/parallel-matrix.yml`
+### 6.4 Enabling Dynamic Mode
 
-Example:
+Dynamic mode is opt-in.
 ```yaml
-version: 1
-
-global:
-  clamp_to_caps: true
-  min_shards: 1
-
-defaults:
-  unit:
-    default_shards: 6
-    max_shards: 8
-
-  integration:
-    default_shards: 3
-    max_shards: 4
-
-  e2e:
-    default_shards: 4
-    max_shards: 6
-    browsers: [chromium, firefox]
-
-  performance:
-    default_shards: 1
-    max_shards: 2
-```
-**Override behavior**
-- Repos may request `override_shards`.
-- If `clamp_to_caps: true`, the request is clamped to `max_shards`.
-
----
-
-## Required Contracts Per Test Type
-### Unit Contract (Makefile / runner)
-- Accept:
-  - `UNIT_SHARD` (1-indexed)
-  - `UNIT_SHARD_TOTAL`
-- Implement deterministic selection:
-  - Sorted list of test projects/files
-  - Stable modulo selection or explicit chunking
-- Produce artifacts per shard:
-  - TRX / JUnit
-  - Coverage artifacts (optional but recommended)
-
-### Integration Contract (Runner)
-- Support explicit items via env:
-  - `INTEG_ITEMS_CSV` or `ITEMS_CSV`
-- Must run one item at a time within the job:
-  - `item = service::scenario`
-- Must export logs and results for audit.
-
-### E2E Contract
-- Accept `BROWSER` and `SHARD_INDEX`/`SHARD_TOTAL`
-- Produce:
-  - screenshots/videos/traces
-  - junit
-  - coverage if available
-
-### Performance Contract
-- Accept group key:
-  - `PERF_GROUP` or `GROUP`
-- Produce:
-  - raw tool output
-  - summary JSON
-  - audit bundle
-
----
-
-## Deterministic Sharding Rules
-### Allowed
-- Sorting inputs (`sort`, stable filenames, stable list ordering)
-- Modulo selection: `((index) % shards) == shardIndex`
-- Explicit mapping from groups/items to jobs
-
-### Not allowed
-- Random shuffling
-- “Adaptive” runtime-based shard resizing without governance approval
-- Dynamic discovery that changes ordering across runs
-
----
-
-## Operational Guidance
-### When to increase shards
-- Unit tests: safe to increase up to cap if runtime is too high.
-- E2E: increase cautiously; prioritize stability and artifact capture.
-- Integration: only increase if DB and infra are isolated per job (rare).
-- Performance: generally do not increase beyond 1 unless groups are truly isolated.
-
-### Avoiding contention
-- Integration/performance should prefer:
-    - dedicated DB containers per job
-    - constrained CPU/memory limits
-    - shorter timeouts and clear health checks
-
----
-
-## Traceability
-- Supports: `PIPE-CORE-2.4.1`
-- Outputs:
-  - Strategy doc: `brik-pipe-docs/testing/parallel-matrix.md`
-  - Config: `.github/parallel-matrix.yml` (platform canonical)
-- KPI:
-  - Predictable CI runtime + cost control
-
----
-
-## Appendix: Example Workflow Usage
-### Example: Unit tests
-```yml
-jobs:
-  plan:
-    uses: BrikByte-Studios/.github/.github/actions/matrix-plan@main
-    with:
-      test_type: unit
-
-  unit:
-    strategy:
-      matrix: ${{ fromJson(needs.plan.outputs.matrix_json) }}
-    env:
-      UNIT_SHARD: ${{ matrix.shard }}
-      UNIT_SHARD_TOTAL: ${{ strategy.job-total }}
+- uses: BrikByte-Studios/.github/.github/actions/shard-plan@main
+  with:
+    mode: dynamic
+    shard_count: 6
+    test_type: unit
+    items_file: my-app/out/test-items.txt
+    audit_root: .audit
 ```
 
-### Example: Integration tests with items
-```yml
-jobs:
-  plan:
-    uses: BrikByte-Studios/.github/.github/actions/matrix-plan@main
-    with:
-      test_type: integration
-      services_csv: "users,payments"
-      scenarios_csv: "happy_path,declined_card"
+If `mode` is omitted or empty → defaults to `static`.
+
+### 6.5 Safety & Fallback Rules
+
+Dynamic mode is **non-blocking by design**.
+
+| Failure Scenario | Behavior |
+| --- | --- |
+| No history found | Fallback to static |
+| Corrupt history | Fallback to static |
+| Planner error | Workflow continues with static |
+| Empty item list | Planner exits early (no-op) |
+
+CI logs will emit:
+```php
+::warning::Shard planner failed; falling back to static mode.
+```
+### 6.6 Determinism in Dynamic Mode
+
+Dynamic mode is **still deterministic**:
+- Sorting is stable
+- Greedy assignment is ordered
+- Optional seed fixes tie-breaks
+
+This means:  
+Dynamic ≠ random
+
+### 6.7 Outputs
+
+Dynamic mode produces the same outputs as static mode:
+```json
+{
+  "mode": "dynamic",
+  "shard_count": 6,
+  "assignments": {
+    "1": ["test_a", "test_f"],
+    "2": ["test_b"],
+    "3": ["test_c"],
+    ...
+  },
+  "metadata": {
+    "used_history": true,
+    "fallback": false
+  }
+}
+```
+---
+
+## 7. Shard Map Contract
+
+The shard planner **must** produce:
+```arduino
+<out_dir>/shard-map.json
 ```
 
-### Example: Performance with groups
-```yml
-jobs:
-  plan:
-    uses: BrikByte-Studios/.github/.github/actions/matrix-plan@main
-    with:
-      test_type: performance
-      items: "smoke,baseline"
+This file is the **single source of truth** for:
+- Test execution
+- Audit export
+- Coverage merging
+- Performance analysis
+
+---
+
+## 8. Audit & Evidence
+
+After planning, the action exports evidence:
+```pgsql
+.audit/
+└── YYYY-MM-DD/
+    └── parallel/
+        ├── shard-map.json
+        ├── shard-summary.json
+        └── metadata.json
 ```
+
+This supports:
+- CI performance benchmarking
+- Regression detection
+- Governance reviews
+- Cost attribution
+
+---
+
+## 9. Language-Agnostic Usage Pattern
+
+All languages follow the same flow:
+1. **Discover tests**
+   - Write newline-delimited `out/test-items.txt`
+2. **Plan shards**
+   - `shard-plan` (static or dynamic)
+3. **Run tests**
+   - Each shard executes its slice
+4. **Merge artifacts**
+   - Coverage, reports, logs
+5. **Governance gates**
+   - Coverage, flake rate, performance
+
+---
+
+## 10.  Recommended Defaults
+| Scenario | Mode |
+| --- | --- |
+| New repo | Static |
+| < 200 tests | Static |
+| Large monorepo | Dynamic |
+| Flaky suite | Static |
+| Performance tuning | Dynamic |
+
+---
+
+## 11.  Anti-Patterns (Avoid)
+
+❌ Using framework-level sharding without shard-plan  
+❌ Randomized test distribution  
+❌ Making dynamic mode mandatory  
+❌ Blocking CI on planner failure  
+❌ Mutating shard assignments mid-job  
+
+---
+
+## 12. Related Documents
+- `PIPE-PARALLEL-SHARD-DYNAMIC-003`
+- `PIPE-PARALLEL-BENCHMARK-TEST-004`
+- `PIPE-CORE-2.4.4`
+- `GOV-TEST-COVERAGE-POLICY-004`
+
+---
+
+## 13.  Summary
+
+- **Static mode** is the foundation
+- **Dynamic mode** is an optimization layer
+- Both share the same contracts, outputs, and audits
+- Failures never block CI
+- Determinism is never compromised
+- Parallelism is an optimization — not a gamble.
+
+
+**Parallelism is an optimization — not a gamble**.  
+BrikByteOS treats it as infrastructure, not a trick.
