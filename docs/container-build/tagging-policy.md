@@ -38,7 +38,7 @@ Result:
 ghcr.io/org/service:sha-2f4c9a1
 ```
 ---
-### 🚀 Release Builds
+#### 🚀 Release Builds
 ```yaml
 tags: sha-${{ github.sha }},v1.2.0
 push: true
