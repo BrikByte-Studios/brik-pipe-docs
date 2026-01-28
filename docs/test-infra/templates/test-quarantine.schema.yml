@@ -1,0 +1,17 @@
+# Docstring:
+# Governance-only schema for tracking quarantined tests.
+# This file MUST NOT be used to automatically skip tests in v1.
+
+schema_version: QuarantineListV1
+
+tests:
+  - test_id: "sha256:..."
+    suite: "unit|integration|e2e-playwright"
+    display_name: "Human readable test name"
+    reason: "Why this test is quarantined"
+    owner: "@team-or-handle"
+    ticket: "GH-123 / JIRA-123"
+    added_at: "YYYY-MM-DD"
+    expires_at: "YYYY-MM-DD"
+    evidence:
+      last_run_audit_path: ".audit/YYYY-MM-DD/PIPE-RUN-<run_id>/flaky/flaky-summary.json"
